@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/tag_icon_vector">
+
+    <target
+        android:name="path_elem_1"
+        android:animation="@animator/stroke_a" />
+    <target
+        android:name="path_elem_2"
+        android:animation="@animator/stroke_b" />
+    <target
+        android:name="path_elem_1"
+        android:animation="@animator/fill_a" />
+    <target
+        android:name="path_elem_2"
+        android:animation="@animator/fill_b" />
+
+</animated-vector>
