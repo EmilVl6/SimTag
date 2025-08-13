@@ -1,8 +1,7 @@
-@file:Suppress("UNREACHABLE_CODE")
-
 package org.simtag.androidapp
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.drawable.Animatable2
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.Drawable
@@ -12,38 +11,76 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.ripple.rememberRipple
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.ripple.ripple
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Matrix
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
@@ -52,19 +89,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import org.simtag.androidapp.data.FirestoreSimTag
 import org.simtag.androidapp.data.SimTag
+import org.simtag.androidapp.ui.QRCode
 import org.simtag.androidapp.ui.theme.SimTagTheme
 import org.simtag.androidapp.ui.theme.SimTagViewModel
-import org.simtag.androidapp.ui.theme.SimTagViewModelFactory
 import kotlin.math.abs
-import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
-    private val simTagViewModel: SimTagViewModel by viewModels {
-        SimTagViewModelFactory((application as SimTagApplication).repository)
-    }
+    private val simTagViewModel: SimTagViewModel by viewModels()
 
     @SuppressLint("DiscouragedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -94,6 +131,7 @@ class MainActivity : ComponentActivity() {
                     override fun onAnimationEnd(drawable: Drawable?) {
                         val elapsed = System.currentTimeMillis() - splashStartTime
                         val remaining = minSplashDuration - elapsed
+                        // Ensure splash stays for minimum duration
                         if (remaining > 0) {
                             window.decorView.postDelayed({
                                 isBrandingAnimationRunning = false
@@ -116,6 +154,22 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
+        // Handle deep links (simtag://tag/{id})
+        intent?.data?.let { data ->
+            if (data.scheme == "simtag" && data.host == "tag") {
+                val tagId = data.lastPathSegment
+                if (tagId != null) {
+                    // TODO: Fetch tag from Firestore and show it in the UI
+                    // Example:
+                    // simTagViewModel.fetchTagById(tagId) { tag ->
+                    //     // Show tag details dialog or navigate to tag screen
+                    // }
+                } else {
+                    // Optionally show an error message to the user
+                }
+            }
+        }
     }
 }
 
@@ -124,7 +178,7 @@ class MainActivity : ComponentActivity() {
 fun SimTagAppScreen(viewModel: SimTagViewModel) {
     val tags by viewModel.allSimTags.collectAsStateWithLifecycle()
     var showDialog by rememberSaveable { mutableStateOf(false) }
-    var currentTagToEdit by remember { mutableStateOf<SimTag?>(null) }
+    var currentTagToEdit by remember { mutableStateOf<FirestoreSimTag?>(null) }
     val cardWidth = 300.dp
     val coroutineScope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
@@ -195,10 +249,7 @@ fun SimTagAppScreen(viewModel: SimTagViewModel) {
                         .clip(tagShape)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = rememberRipple(
-                                color = Color.White,
-                                bounded = true
-                            )
+                            indication = rememberRipple(color = Color.White, bounded = true)
                         ) {
                             if (page == tags.size) {
                                 if (isCurrent) {
@@ -217,6 +268,10 @@ fun SimTagAppScreen(viewModel: SimTagViewModel) {
                                 }
                             }
                         }
+                        .ripple(
+                            color = Color.White,
+                            bounded = true
+                        )
 
                     if (page < tags.size) {
                         SimTagCard(
@@ -252,7 +307,7 @@ fun SimTagAppScreen(viewModel: SimTagViewModel) {
                 onDismiss = { showDialog = false },
                 onSave = { tag ->
                     if (tag.id == 0) {
-                        viewModel.insert(tag)
+                        viewModel.insert(tag) // This will upload to Firestore too
                     } else {
                         viewModel.update(tag)
                     }
@@ -266,18 +321,30 @@ fun SimTagAppScreen(viewModel: SimTagViewModel) {
 
 @Composable
 fun SimTagCard(
-    tag: SimTag,
+    tag: FirestoreSimTag,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onColorChange: ((Int) -> Unit)? = null // Add this for color change callback
 ) {
     val tagColor = Color(tag.color.toLong())
     val tagShape = SvgTagShape(SVG_PATH_STRING)
+    val context = LocalContext.current
+    var showColorPicker by remember { mutableStateOf(false) }
+    val tagUrl = "simtag://tag/${tag.id}"
+
+    fun shareTag() {
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, tagUrl)
+        }
+        context.startActivity(Intent.createChooser(shareIntent, "Share SimTag"))
+    }
+
     Card(
         modifier = modifier
             .width(300.dp)
             .fillMaxHeight(0.85f)
-            .then(Modifier.shadow(8.dp, tagShape, clip = false)) // Custom shadow, not affected by scaling
             .clip(tagShape)
             .drawBehind {
                 val outline = tagShape.createOutline(size, layoutDirection, this)
@@ -287,7 +354,7 @@ fun SimTagCard(
                     val gapLength = 8.dp.toPx()
                     drawPath(
                         path = outline.path,
-                        color = tagColor.copy(alpha = 0.5f),
+                        color = tagColor.copy(alpha = 1f),
                         style = Stroke(
                             width = strokeWidth,
                             pathEffect = PathEffect.dashPathEffect(
@@ -300,10 +367,10 @@ fun SimTagCard(
                     )
                 }
             },
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), // No built-in shadow
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = tagShape,
         colors = CardDefaults.cardColors(
-            containerColor = tagColor.copy(alpha = 0.15f)
+            containerColor = tagColor.copy(alpha = 0.55f)
         )
     ) {
         Box(
@@ -346,6 +413,18 @@ fun SimTagCard(
                     horizontalArrangement = Arrangement.End,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    IconButton(onClick = { shareTag() }) {
+                        Icon(Icons.Filled.Share, contentDescription = "Share Tag")
+                    }
+                    IconButton(onClick = { showColorPicker = true }) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(tagColor)
+                                .border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                        )
+                    }
                     IconButton(onClick = onEditClick) {
                         Icon(Icons.Filled.Edit, contentDescription = "Edit Tag")
                     }
@@ -354,6 +433,24 @@ fun SimTagCard(
                     }
                 }
             }
+            if (showColorPicker) {
+                SimpleColorPickerDialog(
+                    initialColor = tagColor,
+                    onColorSelected = {
+                        showColorPicker = false
+                        onColorChange?.invoke(it.toArgb())
+                    },
+                    onDismiss = { showColorPicker = false }
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            QRCode(content = tagUrl, size = 96)
         }
     }
 }
@@ -406,7 +503,7 @@ fun AddTagCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SimTagEditDialog(
-    tagToEdit: SimTag?,
+    tagToEdit: FirestoreSimTag?,
     onDismiss: () -> Unit,
     onSave: (SimTag) -> Unit
 ) {
@@ -507,6 +604,48 @@ fun SimTagEditDialog(
                         Text("Save")
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun SimpleColorPickerDialog(
+    initialColor: Color,
+    onColorSelected: (Color) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = listOf(
+        Color(0xFF828148), Color(0xFFC7B793), Color(0xFFB2DFDB), Color(0xFFFFCDD2),
+        Color(0xFFFFF59D), Color(0xFF81D4FA), Color(0xFFD1C4E9), Color(0xFFB0BEC5)
+    )
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Pick a color", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(16.dp))
+                Row {
+                    colors.forEach { color ->
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .padding(4.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .border(
+                                    2.dp,
+                                    if (color == initialColor) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    CircleShape
+                                )
+                                .clickable { onColorSelected(color) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onDismiss) { Text("Cancel") }
             }
         }
     }

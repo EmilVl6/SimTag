@@ -1,49 +1,65 @@
 package org.simtag.androidapp.ui.theme
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.simtag.androidapp.data.FirestoreSimTag
+import org.simtag.androidapp.data.FirestoreTagRepository
 import org.simtag.androidapp.data.SimTag
-import org.simtag.androidapp.data.SimTagRepository
 
-class SimTagViewModel(private val repository: SimTagRepository) : ViewModel() {
+class SimTagViewModel(
+    private val repository: FirestoreTagRepository = FirestoreTagRepository()
+) : ViewModel() {
+    private val _allSimTags = MutableStateFlow<List<FirestoreSimTag>>(emptyList())
+    val allSimTags: StateFlow<List<FirestoreSimTag>> = _allSimTags
 
-    // Using StateFlow to expose the list of tags to the UI
-    val allSimTags: StateFlow<List<SimTag>> = repository.allSimTags
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000), // Keep active for 5s after last subscriber
-            initialValue = emptyList() // Initial value while loading
-        )
-
-    fun insert(tag: SimTag) = viewModelScope.launch {
-        repository.insert(tag)
+    init {
+        fetchTags()
     }
 
-    fun update(tag: SimTag) = viewModelScope.launch {
-        repository.update(tag)
-    }
-
-    fun delete(tag: SimTag) = viewModelScope.launch {
-        repository.delete(tag)
-    }
-
-    // You might add functions here to get specific tags by ID if needed for an edit screen
-    // fun getTagById(id: Int): StateFlow<SimTag?> = repository.getSimTagById(id)
-    //    .stateIn(...)
-}
-
-// Factory to provide the SimTagRepository to the ViewModel
-class SimTagViewModelFactory(private val repository: SimTagRepository) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(SimTagViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return SimTagViewModel(repository) as T
+    fun fetchTags() {
+        viewModelScope.launch {
+            _allSimTags.value = repository.getAllTags()
         }
-        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+
+    fun insert(tag: FirestoreSimTag) {
+        viewModelScope.launch {
+            repository.addOrUpdateTag(tag)
+            fetchTags()
+        }
+    }
+
+    fun update(tag: FirestoreSimTag) {
+        viewModelScope.launch {
+            repository.addOrUpdateTag(tag)
+            fetchTags()
+        }
+    }
+
+    fun delete(tag: FirestoreSimTag) {
+        viewModelScope.launch {
+            repository.deleteTag(tag.id)
+            fetchTags()
+        }
+    }
+
+    // In your ViewModel, after local insert/update:
+    fun insert(tag: SimTag) {
+        viewModelScope.launch {
+            localRepository.insert(tag)
+            firestoreRepository.addOrUpdateTag(tag.toFirestore())
+            fetchTags()
+        }
+    }
+
+    fun update(tag: SimTag) {
+        viewModelScope.launch {
+            localRepository.update(tag)
+            firestoreRepository.addOrUpdateTag(tag.toFirestore())
+            fetchTags()
+        }
     }
 }

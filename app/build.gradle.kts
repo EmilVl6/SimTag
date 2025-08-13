@@ -1,8 +1,9 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.android) // This should resolve to kotlin 2.0.0 or higher
     alias(libs.plugins.kotlin.compose)
-    id("com.google.devtools.ksp") version "2.1.21-2.0.1"
+    id("com.google.gms.google-services")
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -62,9 +63,10 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.room.runtime.v261)
+    implementation(libs.androidx.room.ktx.v261)
+    implementation(libs.androidx.security.crypto)
+    ksp(libs.androidx.room.compiler.v261)
     testImplementation(libs.androidx.room.testing)
 
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
@@ -77,4 +79,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.ui)
     implementation(libs.androidx.foundation)
+
+    implementation(libs.firebase.bom)
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.kotlinx.coroutines.play.services)
+
+    implementation(libs.core)
 }
